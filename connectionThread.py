@@ -1,24 +1,19 @@
 import threading
 class ConnectionThread(threading.Thread):
-    def __init__(self, socket, question, math_real_answer):
+    def __init__(self, connection):
         threading.Thread.__init__(self)
-        self.question = question
-        self.math_real_answer = math_real_answer
-        self.socket = socket
+        self.connection = connection
 
-    # Receives the name of the client, and returns it.
-    def receiveName():
+    # Receives the name of the client, and returns it, and update self.name .
+    def receiveName(self):
         NotImplemented
 
-    def startGame():
+    
+
+    def startGame(self):
         NotImplemented
 
     def run(self):
+        self.receiveName()
         self.startGame()
         
-
-        
-message_to_client=
-connectionSocket.send(message_to_client)
-connectionSocket.close()
-client_message = connectionSocket.recv(1024)
