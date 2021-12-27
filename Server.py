@@ -3,38 +3,48 @@ import sys
 from struct import pack
 import threading
 from connectionThread import ConnectionThread
-from connection import GameConnection
+from Player import Player
+import numpy as np
 
 BROADCAST_PORT =13117
 BROADCAST_ADDR = ''
 SERVER_PORT = 32201
-HOST = 'localhost'
-HOST_IP = ''
+HOST_IP = '127.0.0.1'
 NUM_OF_CONNECTIONS = 2
 TIMEOUT = 10
 RECEIVE_NAME_TIMEOUT = 10
-connections_arr = [] # Array of Connection objects.
+
+playerNameThreads = []
+connections_arr = [] # Array of Connection Threads.
 server_wakeup_str = lambda host_addr : "Server started, listening on IP address {}".format(host_addr)
 
 def printMessage(str):
     print(str)
 
+""" Creating a math question as a string, and returns it and the 
+    answer to the question as (question, ans) tuple """
 def create_math_question():
-    NotImplemented
+    first = np.random.uniform(0,4)
+    second = np.random.uniform(0,5)
+    question = "How much is {} + {}".format(first, second)
+    answer  = first + second
+    return (question, answer)
 
-def receiveName(gameConnection):
-    gameConnection.setTimeOut(RECEIVE_NAME_TIMEOUT)
-    name = gameConnection.socket.recv() # Receiving the name of the player. 
-    gameConnection.setName(name)
+""" Requesting the name of the player from the client, waiting up to a certain timeout """
+def receivPlayereName(player, receiveNameTimeout):
+    player.receiveName(player,receiveNameTimeout)
 
-def setPlayerName(gameCon):
-    setNameThread = threading.Thread(target=receiveName(gameCon))
+""" Creating a thread that requests the name of the player from the client,
+    and waiting until a certain timeout """
+def setPlayerName(player):
+    setNameThread = threading.Thread(target=receivPlayereName, args=(player, RECEIVE_NAME_TIMEOUT))
     setNameThread.run()
+    playerNameThreads.append(setNameThread)
 
 
 """ Creating the welcoming TCP socket and listening on the selected port"""
 welcoming_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-welcoming_socket.bind((HOST, SERVER_PORT))
+welcoming_socket.bind((HOST_IP, SERVER_PORT))
 printMessage(server_wakeup_str(host_addr=HOST_IP))
 welcoming_socket.listen(1)
 
@@ -44,9 +54,10 @@ math_q, math_a = create_math_question()
 for i in range(NUM_OF_CONNECTIONS):
     connectionSocket, addr = welcoming_socket.accept()
     connectionSocket.settimeout(TIMEOUT) # setting the determined timeout
-    GC = GameConnection(connectionSocket, math_q, math_a)
-    setPlayerName(GC) # Setting the name of the player
-    connections_arr.append(GC)
+    player = Player(connectionSocket, math_q, math_a)
+    setPlayerName(player) # Setting the name of the player using a different thread.
+    conThread = ConnectionThread(player)
+    connections_arr.append(conThread)
 
 
 
