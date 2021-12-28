@@ -21,10 +21,16 @@ def start_client():
 def recive_broadcast(socket):
     packet, address= socket.recvfrom(1024)
     socket.close()
+    print(packet)
+    p = unpack('<7s', packet)
+    print(p)
     cookie = unpack('I',packet[:4])[0]
     msg_type = unpack('b',packet[4:5])[0]
+    print(packet[:4])
+    print(packet[4:5])
+    print(packet[5:7])
     if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
-        server_port = unpack('H', packet[6:8])[0]
+        server_port = unpack('H', packet[5:7])[0]
 
         connect_to_server(server_port,address[0])
 
@@ -56,7 +62,7 @@ def game_mode(connection_socket):
             if(len(msg_queue)==0):
                 writable.remove(o)
         for s in e:
-            print >>sys.stderr, 'handling exceptional condition for', s.getpeername()
+            print('handling exceptional condition for', s.getpeername())
             # Stop listening for input on the connection
             readable.remove(s)
             if s in writable:
@@ -68,11 +74,11 @@ def handle_msg_from_socket(s):
     data = s.recv(1024)
     if data:
         # A readable client socket has data
-        print >>sys.stderr, 'received "%s" from %s' % (data, s.getpeername())
+        print(sys.stderr, 'received "%s" from %s' % (data, s.getpeername()))
         return False #should not finish
     else:
             # Interpret empty result as closed connection
-            print >>sys.stderr, 'closing', s.getpeername(), 'after reading no data'
+            print(sys.stderr, 'closing', s.getpeername(), 'after reading no data')
             # Should finish
             return True
                 

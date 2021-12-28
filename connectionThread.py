@@ -1,5 +1,4 @@
 import threading
-import Server
 class ConnectionThread(threading.Thread):
     LOSS_INDEX = 0
     WIN_INDEX = 1
@@ -10,7 +9,7 @@ class ConnectionThread(threading.Thread):
         self.welcome_msg = welcome_msg
         self.answer = answer
         self.player = player
-        self.won_func = Server.finishGame
+        self.won_func = None
 
     def getCharOrLoseEvent(self):
         NotImplemented
