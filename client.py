@@ -24,18 +24,18 @@ def recive_broadcast(socket):
     cookie = unpack('I',packet[:4])[0]
     msg_type = unpack('b',packet[4:5])[0]
     if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
-        server_port = unpack('h', packet[5:7])[0]
-        print(server_port)
-        print(address)
+        server_port = unpack('H', packet[6:8])[0]
+
         connect_to_server(server_port,address[0])
 
 def connect_to_server(server_port, server_address):
     ClientConnectionSocket =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        print(server_address)
         ClientConnectionSocket.connect((server_address, server_port))
         game_mode(ClientConnectionSocket)
-    except ConnectionRefusedError:
-        print("failed to connect")
+    except Exception as e:
+        print("failed to connect", e)
         ClientConnectionSocket.close()
 
 def game_mode(connection_socket):
