@@ -26,8 +26,18 @@ class Player():
 
     """ Sending a message to the client throught the player's socket """
     def sendMessage(self, msg, timeout):
-        self.setTimeOut(timeout)
-        self.socket.send(msg)
+        try:
+            self.setTimeOut(timeout)
+            self.socket.send(msg)
+        except:
+            print("Error sending message") 
+
+    def sendAndFinish(self, msg):
+        try:
+            self.sendMessage(msg)
+            self.socket.close()
+        except:
+            print("Error closing socket")
 
     """ Receiving a char from the client (or none if nothing was recevied) """
     def receiveChar(self, msg, timeout):
