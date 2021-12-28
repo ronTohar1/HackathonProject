@@ -3,7 +3,8 @@ import Server
 class ConnectionThread(threading.Thread):
     LOSS_INDEX = 0
     WIN_INDEX = 1
-
+    DRAW_INDEX = -1
+    
     def __init__(self, player, welcome_msg, answer, timeout):
         threading.Thread.__init__(self)
         self.timeout = timeout

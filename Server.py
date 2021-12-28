@@ -3,189 +3,216 @@ import sys
 from struct import pack
 import threading
 import time
-from numpy.core.defchararray import startswith
-from numpy.core.fromnumeric import trace
 from connectionThread import ConnectionThread
 from Player import Player
-import numpy as np
 import queue
+import numpy as np
+
+class Server():
+
+    BROADCAST_PORT = 13117
+    BROADCAST_ADDR = ''
+    HOST_IP = '127.0.0.1'
+
+    ANSWER_TIMEOUT = 10
+    RECEIVE_NAME_TIMEOUT = 5
+    TIME_AFTER_LAST_JOINED = 10
+
+    MAGIC_COOKIE = bytearray([0xab , 0xcd, 0xdc, 0xba])
+    MSG_TYPE = bytearray([0x02])
+
+    # initiating the server object. expacting a lock object to be received!.
+    def __init__(self, lock, port, num_of_players=2):
+        self.lock = lock
+
+        # Server related variables
+        self.port = port # Server port
+        self.welcome_socket = None # TCP 'welcome' socket
+
+        # Players related variables
+        self.team_number_counter = 1 # used for default team numbers
+        self.player = [] # Player objects that play in the game.
+        self.connection_threads = [] # Array of Connection Threads (game members).
+
+        # Game variables
+        self.num_of_players = num_of_players
+        self.isGameFinished = False
+        self.question = ""
+        self.answer = 0
+    
+        # Informative strings for the server.
+        self.server_wakeup_str = lambda host_addr : "Server started, listening on IP address {}".format(host_addr)
+        self.get_finish_str = lambda ans : "Game Over!\n the correct answer was {}\n\n".format(ans)
+        self.get_congrats_str = lambda p_won: "Congratulations to the WINNER: {}".format(p_won)
+        self.draw_str = "Good game everyone! it's a draw"
+        self.get_lose_str = lambda p_loss: "Congratulations to the LOSER : {}".format(p_loss)
+        
+    def getLoseStr(self, PlayerName):
+        return self.get_finish_str(self.answer) + self. get_lose_str(PlayerName)
+    def getWinStr(self, PlayerName):
+        return self.get_finish_str(self.answer) + self.getWinStr(PlayerName)
+    def getDrawStr(self):
+        return self.get_finish_str(self.answer) + self.draw_str
+
+    """broadcast the invitation message"""
+    """Receives a message string and sends it as a broadcast"""
+    def broadcast_message(self):
+        broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        formatted_msg = pack('ssh',Server.MAGIC_COOKIE, Server.MSG_TYPE, self.port)
+        broadcast_socket.sendto( formatted_msg , ('<broadcast>', Server.BROADCAST_PORT))
+        broadcast_socket.close()
+
+    """ Creating a math question as a string, and returns it and the 
+        answer to the question as (question, ans) tuple """
+    def create_math_question(self):
+        first = np.random.randint(0, 4)
+        second = np.random.randint(0, 5)
+        question = "How much is {} + {}".format(first, second)
+        answer  = first + second
+        return question, answer
+
+    def getDefaultTeamName(self):
+        teamName = "Team Number {}".format(self.team_number_counter)
+        self.team_number_counter += 1
+        return teamName
+   
+    """ Creating a thread that requests the name of the player from the client,
+        and waiting until a certain timeout, and returns the thread that sets the name """
+    def setPlayerName(self, player : Player, defaultName):
+        target_func = Player.receiveName
+        target_args = (player, Server.RECEIVE_NAME_TIMEOUT, defaultName)
+        setNameThread = threading.Thread(target=target_func , args=target_args)
+        setNameThread.start()
+        return setNameThread
+
+    """ Creating the welcoming TCP socket and listening on the selected port"""
+    def startServer(self, host_ip, server_port):
+        while True:
+            self.resetServer() # Making sure server is ready for new game.
+
+            # Starting TCP 'welcome' socket for the server
+            self.welcoming_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.welcoming_socket.bind(('', server_port))
+            self.welcoming_socket.listen(1)
+            
+            print(self.server_wakeup_str(host_addr=host_ip)) # Printing that started listening
+            self.question, self.answer = self.create_math_question() # Setting math question and ans
+
+            # Sending broadcast and starting to connect players.
+            self.broadcast_message(self.server_wakeup_str(host_addr=host_ip)) 
+            self.connectPlayers() # accepting new players
+            self.startGame() # After all players joined -> starting the game.
 
 
-BROADCAST_PORT =13117
-BROADCAST_ADDR = ''
-SERVER_PORT = 32201
-HOST_IP = '127.0.0.1'
+    """ Connecting the players to the server """
+    """ Recieves -> welcome socket that is listening to new connection requests,
+                    math question and answer,
+                    number of allowed players."""
+    """ Method requests the name of the player from the client and adds the client to the game members """
+    def connectPlayers(self):
+        # Starting to accept connections of clients and adding them to the connected clients array.
+        for i in range(self.num_of_players):
+            connectionSocket, addr = self.welcome_socket.accept()
+            connectionSocket.setblocking(True) # making sure the socket is blocking.
+            player = Player(connectionSocket)
+            self.players.append(player) # adding the player to the players list
 
-NUM_OF_PLAYERS = 2
-ANSWER_TIMEOUT = 10
-RECEIVE_NAME_TIMEOUT = 5
-TIME_AFTER_LAST_JOINED = 10
+        for player in self.players:
+            defaultName = self.getDefaultTeamName()
+            self.setPlayerName(player, defaultName)
+        
+    """ Creating the string that will be sent to all players when the game begins"""
+    def createWelcomeString(self):
+        welcome_str = "Welcome to Quick Maths!\n"
+        for i in range(len(self.players)):
+            welcome_str = welcome_str + "Player {}: {}\n".format(i, self.players[i].getName())
+        welcome_str = welcome_str + "== \n Please answer as fast as you can :\n{}".format(self.question)
 
-DRAW_INDEX = -1
+    """ Saving connection threads, where each thread manages the game flow of a player """
+    def addConnectionThreads(self, players, welcomeMsg, ans, timeout):
+        for player in players:
+            conThread = ConnectionThread(player, welcomeMsg, ans, timeout)
+            self.connection_threads.append(conThread)
 
-lock = threading.Lock()
+    """ This method is being called when the game is finished by one of the threads """
+    # num = 0 is loss, num = 1 is win, other num is draw
+    def finishGame(self, num, player : Player=None):
+        self.lock.acquire()
+        if not self.isGameFinished :
+            self.isGameFinished = True
+            if num == ConnectionThread.LOSS_INDEX:
+                self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
+            elif num == ConnectionThread.WIN_INDEX:
+                self.SendPlayersAndFinish(self.getWinStr(player.getName()))
+            else:
+                self.SendPlayersAndFinish(self.getDrawStr(player.getName))
+        self.lock.release()
 
-teamNumberCounter = 1
-isGameFinished = False
-finish_str = ""
+    """ This method makes sure that the game is no longer than the determined max time """
+    def gameTimeout(self):
+        time.sleep(Server.ANSWER_TIMEOUT) # waiting 10 seconds until the game ends
+        self.finishGame(ConnectionThread.DRAW_INDEX) # trying to create draw situation
 
-players = [] # Player objects that play in the game.
-playerNameThreads = [] # Threads that request the name from the players.
-connections_arr = [] # Array of Connection Threads (game members).
+    """ Sending all players a message and closing the connections """
+    def SendPlayersAndFinish(self, msg):
+        for player in self.players:
+            t = threading.Thread(target=player.sendAndFinish, args=(msg))
+            t.start()
 
-server_wakeup_str = lambda host_addr : "Server started, listening on IP address {}".format(host_addr)
-defaultTeamName = lambda num :  "Team Number {}".format(num)
-get_finish_str = lambda ans : "Game Over!\n the correct answer was {}\n\n".format(ans)
-get_congrats_str = lambda p_won: "Congratulations to the WINNER: {}".format(p_won)
-get_draw_str = lambda : "Good game everyone!"
-get_lose_str = lambda p_loss: "Congratulations to the LOSER : {}".format(p_loss)
+    """Returns true if finished properly or false otherwise -> meaning not
+    all participants are connected properly ??????????????????????????????"""
+    def startGame(math_q, math_a, players, connectionThreads):
+        finish_str = get_finish_str(math_a)
+        # try:
+        #     checkPlayersNames(players)
+        # except PlayerNameException as e:
+        #     # return False???
+        #     handleNoNameSent(e.player)
 
-class PlayerNameException(Exception):
-    def __init__(self, player):
-        self.player = player
+        welcome_str = createWelcomeString(players)
+        # need to sleep for 10 seconds after all clients joined
+        conThreadsCreation_thread = threading.Thread(target=addConnectionThreads, args=(players, welcome_str, math_a, ANSWER_TIMEOUT))
+        conThreadsCreation_thread.start()
+        time.sleep(RECEIVE_NAME_TIMEOUT) # Waiting 10 sec after second user joined.
+        conThreadsCreation_thread.join()
+        
 
-def printMessage(str):
-    print(str)
+        # We start the game after knowing all players are connected and have names
+        # send message to all players : 'All players connected, starting in 10 seconds....'
+        game_timeout_thread = threading.Thread(target=gameTimeout)
+        for player in players:
+            # The timeout is not really relevant as we will not wait for it. 
+            # Therefore, we put the answer timeout that is already the max time out.
+            t = threading.Thread(target=player.sendMessage, args=(welcome_str, ANSWER_TIMEOUT))
+            t.start()
 
-"""broadcast the invitation message"""
-"""Receives a message string and sends it as a broadcast"""
-def broadcast_message(message):
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    server.sendto( pack('c',message), ('<broadcast>', BROADCAST_PORT))
-    server.close()
+        # GAME STARTING!!!!!
+        game_timeout_thread.start()
 
-""" Creating a math question as a string, and returns it and the 
-    answer to the question as (question, ans) tuple """
-def create_math_question():
-    first = np.random.randint(0, 4)
-    second = np.random.randint(0, 5)
-    question = "How much is {} + {}".format(first, second)
-    answer  = first + second
-    return question, answer
+    """ Reseting the important server fields in order to be able to start a new game session """
+    def resetServer(self):
+        # Players related variables
+        self.team_number_counter = 1
+        self.players = [] 
+        self.connection_threads = [] 
 
-""" Requesting the name of the player from the client, waiting up to a certain timeout """
-def receivePlayereName(player, receiveNameTimeout, names_q, defaultTeamNum):
-    player.receiveName(player,receiveNameTimeout, names_q, defaultTeamNum)
+        # Game variables
+        self.isGameFinished = False
+        self.question = ""
+        self.answer = 0
 
-""" Creating a thread that requests the name of the player from the client,
-    and waiting until a certain timeout, and returns the thread that sets the name """
-def setPlayerName(player, defaultName):
-    names_q = queue.Queue(NUM_OF_PLAYERS)
-    setNameThread = threading.Thread(target=receivePlayereName, args=(player, RECEIVE_NAME_TIMEOUT, names_q, defaultName))
-    setNameThread.start()
-    playerNameThreads.append(setNameThread)
-    return setNameThread
+        # Server variables
+        self.welcome_socket = None
 
-""" Creating the welcoming TCP socket and listening on the selected port"""
-def startServer(host_ip, server_port):
-    we_have_a_winner = False
-    welcoming_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    welcoming_socket.bind(('', server_port))
-    question, answer = create_math_question()
-    printMessage(server_wakeup_str(host_addr=host_ip))
-    broadcast_message(server_wakeup_str(host_addr=host_ip))
-    welcoming_socket.listen(1)
-    connectPlayers(welcoming_socket, NUM_OF_PLAYERS) # accepting new players
-    startGame(question, answer, players, connections_arr)
-
-
-""" Connecting the players to the server """
-""" Recieves -> welcome socket that is listening to new connection requests,
-                math question and answer,
-                number of allowed players."""
-""" Method requests the name of the player from the client and adds the client to the game members """
-def connectPlayers(welcome_socket , num_of_players):
-    # Starting to accept connections of clients and adding them to the connected clients array.
-    for i in range(num_of_players):
-        connectionSocket, addr = welcome_socket.accept()
-        connectionSocket.setblocking(True) # making sure the socket is blocking.
-        player = Player(connectionSocket)
-        players.append(player) # adding the player to the players list
-
-    for player in players:
-        defaultName = defaultTeamName(teamNumberCounter)
-        player_name_thread = setPlayerName(player, defaultName)
-        teamNumberCounter = teamNumberCounter + 1
     
 
-def handleNoNameSent(player):
-    "NANA BANANA"
-
-def checkPlayersNames(players):
-    for player in players:
-        if not player.isNameValid():
-            raise PlayerNameException(player)
-
-def createWelcomeString(question, players):
-    welcome_str = "Welcome to Quick Maths!\n"
-    for i in range(len(players)):
-        welcome_str = welcome_str + "Player {}: {}\n".format(i, players[i].getName())
-    welcome_str = welcome_str + "== \n Please answer as fast as you can :\n{}".format(question)
-
-def addConnectionThreads(players, welcomeMsg, ans, timeout):
-    for player in players:
-        conThread = ConnectionThread(player, welcomeMsg, ans, timeout)
-        connections_arr.append(conThread)
-
-# num = 0 is loss, num = 1 is win, other num is draw
-def finishGame(num, player=None):
-    global isGameFinished
-    lock.acquire()
-    if not isGameFinished:
-        isGameFinished = True
-        if num == ConnectionThread.LOSS_INDEX:
-            SendPlayersAndFinish(finish_str + get_lose_str(player))
-        elif num == ConnectionThread.WIN_INDEX:
-            SendPlayersAndFinish(finish_str + get_congrats_str(player))
-        else:
-            SendPlayersAndFinish(finish_str + get_draw_str())
-    lock.release()
-
-def gameTimeout():
-    time.sleep(ANSWER_TIMEOUT) # waiting 10 seconds until the game ends
-    finishGame(DRAW_INDEX) # trying to create draw situation
-
-def SendPlayersAndFinish(msg):
-    for player in players:
-        t = threading.Thread(target=player.sendAndFinish, args=(msg))
-        t.start()
-
-"""Returns true if finished properly or false otherwise -> meaning not
-all participants are connected properly ??????????????????????????????"""
-def startGame(math_q, math_a, players, connectionThreads):
-    finish_str = get_finish_str(math_a)
-    # try:
-    #     checkPlayersNames(players)
-    # except PlayerNameException as e:
-    #     # return False???
-    #     handleNoNameSent(e.player)
-
-    welcome_str = createWelcomeString(players)
-    # need to sleep for 10 seconds after all clients joined
-    conThreadsCreation_thread = threading.Thread(target=addConnectionThreads, args=(players, welcome_str, math_a, ANSWER_TIMEOUT))
-    conThreadsCreation_thread.start()
-    time.sleep(RECEIVE_NAME_TIMEOUT) # Waiting 10 sec after second user joined.
-    conThreadsCreation_thread.join()
     
 
-    # We start the game after knowing all players are connected and have names
-    # send message to all players : 'All players connected, starting in 10 seconds....'
-    game_timeout_thread = threading.Thread(target=gameTimeout)
-    for player in players:
-        # The timeout is not really relevant as we will not wait for it. 
-        # Therefore, we put the answer timeout that is already the max time out.
-        t = threading.Thread(target=player.sendMessage, args=(welcome_str, ANSWER_TIMEOUT))
-        t.start()
-
-    # GAME STARTING!!!!!
-    game_timeout_thread.start()
+def main():
+    broadcast_message()
     
-
-
-
-    
-    
+main()
 
 
 
