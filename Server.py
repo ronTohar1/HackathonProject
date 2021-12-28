@@ -15,7 +15,7 @@ class Server():
     HOST_IP = '127.0.0.1'
 
     ANSWER_TIMEOUT = 10
-    RECEIVE_NAME_TIMEOUT = 10
+    RECEIVE_NAME_TIMEOUT = 4
     TIME_AFTER_LAST_JOINED = 4
 
     MAGIC_COOKIE = bytearray([0xba , 0xdc, 0xcd, 0xab])
@@ -129,6 +129,8 @@ class Server():
             defaultName = self.getDefaultTeamName()
             t = self.setPlayerName(player, defaultName)
 
+
+        
         
     """ Creating the string that will be sent to all players when the game begins"""
     def createWelcomeString(self):
@@ -186,9 +188,9 @@ class Server():
 
         self.debug("going to sleep {}".format( Server.TIME_AFTER_LAST_JOINED))
         time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
-        
+
         for psThr in self.player_name_threads:
-            psThr.join
+            psThr.join()
 
         self.debug("Slept")
         conThreadsCreation_thread.join() # Making sure all connection threads are created.
@@ -234,7 +236,8 @@ class Server():
     
 
 def main():
-    server_port : int = 33022
+
+    server_port : int = 33026
     host_ip = '172.18.0.61'
     num_of_players = 1
     lock = threading.Lock()

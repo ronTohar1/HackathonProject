@@ -87,8 +87,11 @@ def handle_msg_from_socket(s):
         return True
     print(s)
     while len(data)<7:
-        print(data)
-        data += s.recv(1024)
+        if data:
+            print(data, "wtf")
+            data += s.recv(1024)
+        else:
+            return True
     if data:
         # A readable client socket has data
         data = "".join(map(chr, data))
@@ -103,7 +106,6 @@ def handle_msg_from_socket(s):
 def handle_keyboard(s):
     # gets a msg from server using created TCP socket
     input = s.readline()
-    print(input)
     chars = []
     for c in input:
         chars.append(c) #todo use this in ans
