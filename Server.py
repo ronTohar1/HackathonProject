@@ -15,7 +15,7 @@ class Server():
     HOST_IP = '127.0.0.1'
 
     ANSWER_TIMEOUT = 10
-    RECEIVE_NAME_TIMEOUT = 5
+    RECEIVE_NAME_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 10
 
     MAGIC_COOKIE = bytearray([0xab , 0xcd, 0xdc, 0xba])
@@ -130,9 +130,9 @@ class Server():
         welcome_str = welcome_str + "== \n Please answer as fast as you can :\n{}".format(self.question)
 
     """ Saving connection threads, where each thread manages the game flow of a player """
-    def addConnectionThreads(self, players, welcomeMsg, ans, timeout):
-        for player in players:
-            conThread = ConnectionThread(player, welcomeMsg, ans, timeout)
+    def addConnectionThreads(self, welcomeMsg):
+        for player in self.players:
+            conThread = ConnectionThread(player, welcomeMsg, self.answer, Server.ANSWER_TIMEOUT)
             self.connection_threads.append(conThread)
 
     """ This method is being called when the game is finished by one of the threads """
@@ -162,29 +162,28 @@ class Server():
 
     """Returns true if finished properly or false otherwise -> meaning not
     all participants are connected properly ??????????????????????????????"""
-    def startGame(math_q, math_a, players, connectionThreads):
-        finish_str = get_finish_str(math_a)
+    def startGame(self):
         # try:
         #     checkPlayersNames(players)
         # except PlayerNameException as e:
         #     # return False???
         #     handleNoNameSent(e.player)
 
-        welcome_str = createWelcomeString(players)
+        welcome_str = self.createWelcomeString()
         # need to sleep for 10 seconds after all clients joined
-        conThreadsCreation_thread = threading.Thread(target=addConnectionThreads, args=(players, welcome_str, math_a, ANSWER_TIMEOUT))
+        conThreadsCreation_thread = threading.Thread(target=self.addConnectionThreads, args=(welcome_str))
         conThreadsCreation_thread.start()
-        time.sleep(RECEIVE_NAME_TIMEOUT) # Waiting 10 sec after second user joined.
-        conThreadsCreation_thread.join()
+        time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
+        conThreadsCreation_thread.join() # Making sure all connection threads are created.
         
 
         # We start the game after knowing all players are connected and have names
         # send message to all players : 'All players connected, starting in 10 seconds....'
-        game_timeout_thread = threading.Thread(target=gameTimeout)
-        for player in players:
+        game_timeout_thread = threading.Thread(target=self.gameTimeout)
+        for player in self.players:
             # The timeout is not really relevant as we will not wait for it. 
             # Therefore, we put the answer timeout that is already the max time out.
-            t = threading.Thread(target=player.sendMessage, args=(welcome_str, ANSWER_TIMEOUT))
+            t = threading.Thread(target=player.sendMessage, args=(welcome_str, Server.ANSWER_TIMEOUT))
             t.start()
 
         # GAME STARTING!!!!!
@@ -210,7 +209,11 @@ class Server():
     
 
 def main():
-    broadcast_message()
+    server_port = 31310
+    num_of_players = 2
+    lock = threading.Lock()
+    server = Server(lock, server_port, num_of_players)
+    server.startServer()
     
 main()
 
