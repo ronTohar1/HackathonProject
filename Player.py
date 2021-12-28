@@ -8,6 +8,7 @@ class Player():
         self.socket = socket
         self.name = ""
 
+       
     def getName(self):
         return self.name
 
@@ -24,45 +25,59 @@ class Player():
     def isNameValid(self):
         return self.name != ""
 
-    """ Sending a message to the client throught the player's socket """
+    """ Sending a message to the client throught the player's socket .
+        msg should be encoded"""
     def sendMessage(self, msg, timeout):
         try:
             self.setTimeOut(timeout)
             self.socket.send(msg)
-        except:
-            print("Error sending message") 
+        except Exception as e:
+            print("Error sending message: {}".format(e)) 
 
     def sendAndFinish(self, msg):
         try:
+            msg = bytearray([1,1,1,2])
             self.sendMessage(msg)
             self.socket.close()
         except:
             print("Error closing socket")
 
     """ Receiving a char from the client (or none if nothing was recevied) """
-    def receiveChar(self, msg, timeout):
+    def receiveChar(self, timeout):
         self.setTimeOut(timeout)
-        data = self.socket.recv()
-        if not data:
-            return None
-        else:
-            return data[0]
+        try:
+            data = self.socket.recv()
+            if not data:
+                return None
+            else:
+                return chr(data[0])
+        except socket.timeout as e:
+            print("Timeout exception", e)
+        except Exception as e:
+            print("Exception", e)
 
     """ Requesting the name from the client and setting it as this player name """
-    def receiveName(player, receiveNameTimeout ,defaultTeamName):
-        player.setTimeOut(receiveNameTimeout)
+    def receiveName(self, receiveNameTimeout ,defaultTeamName):
+        self.setTimeOut(receiveNameTimeout)
         name_buffer =[]
+        continue_recv = True
         while continue_recv:
             # IMPLEMENT EXCEPTION HANDLING
             try:
-                recv_buffer = player.socket.recv() # Receiving the name of the player.
-            except socket.timeout:
-                player.setName(defaultTeamName)
+                recv_buffer = self.socket.recv(1024) # Receiving the name of the player.
+            except socket.timeout as e:
+                self.setName(defaultTeamName)
                 break
+            except Exception as e:
+                print("Exception: ",e)
             for c in iter_unpack('c',recv_buffer):
                 next_char = c[0]
-                if next_char == '\n':
+                if next_char == bytearray(("\n").encode()):
                     continue_recv = False
                 else:
                     name_buffer += next_char
-        player.setName(str.join(name_buffer)) # setting the name of the current player.
+        print("Received name:!!!!!")
+        name = ""
+        name = str(name.join(map(chr, name_buffer))) # decoding the name 
+        self.setName(name) # setting the name of the current player.
+        print(":Finished recieveing1")
