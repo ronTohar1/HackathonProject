@@ -10,6 +10,7 @@ from Player import Player
 import numpy as np
 import queue
 
+
 BROADCAST_PORT =13117
 BROADCAST_ADDR = ''
 SERVER_PORT = 32201
@@ -25,8 +26,7 @@ DRAW_INDEX = -1
 lock = threading.Lock()
 
 teamNumberCounter = 1
-
-GameFinishedBool = False
+isGameFinished = False
 finish_str = ""
 
 players = [] # Player objects that play in the game.
@@ -130,6 +130,7 @@ def addConnectionThreads(players, welcomeMsg, ans, timeout):
 
 # num = 0 is loss, num = 1 is win, other num is draw
 def finishGame(num, player=None):
+    global isGameFinished
     lock.acquire()
     if not isGameFinished:
         isGameFinished = True
