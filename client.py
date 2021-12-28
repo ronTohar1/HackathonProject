@@ -12,30 +12,34 @@ bytesToSend         = str.encode(msgFromClient)
 
 def start_client():
     # Create a UDP socket at client side
-    ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ClientBroadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    ClientBroadcastSocket.bind(("", BROADCAST_PORT))
-    recive_broadcast(ClientBroadcastSocket)
+    while True:
+        ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ClientBroadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        ClientBroadcastSocket.bind(("", BROADCAST_PORT))
+        recive_broadcast(ClientBroadcastSocket)
 
 def recive_broadcast(socket):
     packet, address= socket.recvfrom(1024)
-    cookie = packet[:4]
-    msg_type = packet[4:5]
+    socket.close()
+    cookie = unpack('I',packet[:4])[0]
+    msg_type = unpack('b',packet[4:5])[0]
     if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
-        server_port = unpack('h', packet[5:7])
-        connect_to_server(server_port,address)
-    recive_broadcast(socket)
+        server_port = unpack('h', packet[5:7])[0]
+        print(server_port)
+        print(address)
+        connect_to_server(server_port,address[0])
 
 def connect_to_server(server_port, server_address):
     ClientConnectionSocket =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         ClientConnectionSocket.connect((server_address, server_port))
+        game_mode(ClientConnectionSocket)
     except ConnectionRefusedError:
+        print("failed to connect")
         ClientConnectionSocket.close()
-        recive_broadcast()
-    game_mode(ClientConnectionSocket)
 
 def game_mode(connection_socket):
+    print("hi")
     msg_queue = []
     should_finish = False
     while not should_finish:
@@ -82,3 +86,6 @@ def handle_keyboard(s):
 
 def handle_send(o,msg):
     o.send(msg)
+
+if __name__=="__main__":
+    start_client()
