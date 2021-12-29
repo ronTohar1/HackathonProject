@@ -10,7 +10,7 @@ import random
 
 class Server():
 
-    BROADCAST_PORT = 13118
+    BROADCAST_PORT = 13117
 
     ANSWER_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 7

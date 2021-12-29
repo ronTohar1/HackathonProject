@@ -4,7 +4,7 @@ import sys
 import select
 import time
 
-BROADCAST_PORT =13118
+BROADCAST_PORT =13117
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
 TEAM_NAME = "La Casa De Packet"
@@ -91,10 +91,8 @@ def handle_msg_from_socket(s):
     except Exception as e:
         print(sys.stderr, 'closing', s.getpeername(), 'after', e)
         return True
-    print(s)
     while len(data)<7:
         if data:
-            print(data, "wtf")
             data += s.recv(1024)
         else:
             return True
