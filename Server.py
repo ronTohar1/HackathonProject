@@ -16,7 +16,7 @@ class Server():
     TIME_AFTER_LAST_JOINED = 7
     RECEIVE_NAME_TIMEOUT = TIME_AFTER_LAST_JOINED
     HOST_IP = '172.1.0.61'
-    DEV_BROADCAST = '172.1.255.255'
+    DEV_BROADCAST_IP = '172.1.255.255'
 
     MAGIC_COOKIE = 0xabcddcba #bytearray([0xba , 0xdc, 0xcd, 0xab])
     MSG_TYPE = 0x2
@@ -67,7 +67,7 @@ class Server():
         broadcast_socket.bind((Server.HOST_IP, 0))
         formatted_msg = pack('=IbH',Server.MAGIC_COOKIE, Server.MSG_TYPE, self.port)
         while self.connectingPlayers:
-            broadcast_socket.sendto(formatted_msg , (Server.DEV_BROADCAST, Server.BROADCAST_PORT))
+            broadcast_socket.sendto(formatted_msg , (Server.DEV_BROADCAST_IP, Server.BROADCAST_PORT))
             time.sleep(1)
         
         broadcast_socket.close()

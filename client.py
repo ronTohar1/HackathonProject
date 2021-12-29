@@ -7,29 +7,39 @@ import time
 BROADCAST_PORT =13118
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
-msgFromClient       = "Hello UDP Server"
-bytesToSend         = str.encode(msgFromClient)
-TeamName = "La Casa De Packet"
+TEAM_NAME = "La Casa De Packet"
+MY_NET = '172.1'
+
+def isInNet(ip):
+    l = len(MY_NET)
+    if len(ip) < l:
+        return False
+    return ip[:l] == MY_NET
+
 
 
 def start_client():
     # Create a UDP socket at client side
+    ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ClientBroadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    ClientBroadcastSocket.bind(('', BROADCAST_PORT))
     while True:
-        ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        ClientBroadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        ClientBroadcastSocket.bind(('', BROADCAST_PORT))
         recive_broadcast(ClientBroadcastSocket)
 
 def recive_broadcast(socket):
     print("Waiting for broadcasts")
-    packet, address= socket.recvfrom(1024)
+    connected = False
+    # Trying to connect a host in the net
+    while not connected:
+        packet, address= socket.recvfrom(1024)
+        if isInNet(address):
+            connected = True
+    
     while len(packet)<7: #Not supposed to happen
         packet += socket.recvfrom(1024)[0]
-    socket.close()
-    
+
     if(len(packet)) == 7:
         cookie, msg_type, server_port = unpack('=IbH',packet)
-        print(unpack('H', packet[5:7])[0])
         if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
             print("Received offer from ip: {}, attempting to connect...".format(address[0])) # printing ip
             connect_to_server(server_port,address[0])
@@ -38,11 +48,10 @@ def connect_to_server(server_port, server_address):
     ClientConnectionSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         ClientConnectionSocket.connect((server_address, server_port))
-        ClientConnectionSocket.send(encodeStr(TeamName)) # Sedning team name
+        ClientConnectionSocket.send(encodeStr(TEAM_NAME)) # Sedning team name
         game_mode(ClientConnectionSocket, server_address)
     except Exception as e:
-        print("failed to connect", e)
-        ClientConnectionSocket.close()
+        print("Failed to connect. Error:", e)
 
 def game_mode(connection_socket, server_ip):
     print("Connected successfuly to", server_ip)
