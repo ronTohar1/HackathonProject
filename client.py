@@ -79,9 +79,6 @@ def game_mode(connection_socket, server_ip):
                 writable.remove(s)
             s.close()
             should_finish = True
-        print("1 sec")
-        time.sleep(1)
-        print("dealy")
     
     
 def handle_msg_from_socket(s):
@@ -117,7 +114,7 @@ def handle_keyboard(s):
 
 def handle_send(o,msg):
     print("sending", msg)
-    o.send(bytearray(msg.encode()))
+    o.send(encodeStr(msg))
 
 def encodeStr(msg):
     return msg.encode('utf-8')
