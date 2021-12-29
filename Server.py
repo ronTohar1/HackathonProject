@@ -15,8 +15,8 @@ class Server():
     HOST_IP = '127.0.0.1'
 
     ANSWER_TIMEOUT = 10
-    RECEIVE_NAME_TIMEOUT = 4
-    TIME_AFTER_LAST_JOINED = 4
+    TIME_AFTER_LAST_JOINED = 5
+    RECEIVE_NAME_TIMEOUT = TIME_AFTER_LAST_JOINED
 
     MAGIC_COOKIE = bytearray([0xba , 0xdc, 0xcd, 0xab])
     MSG_TYPE = bytearray([0x02])
@@ -149,23 +149,20 @@ class Server():
     """ This method is being called when the game is finished by one of the threads """
     # num = 0 is loss, num = 1 is win, other num is draw
     def finishGame(self, num, player : Player=None):
-        self.lock.acquire()
-        self.debug("Finished GAMEQ!!!!!")
-        if not self.isGameFinished :
-            self.isGameFinished = True
-            if num == ConnectionThread.LOSS_INDEX:
-                self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
-            elif num == ConnectionThread.WIN_INDEX:
-                self.SendPlayersAndFinish(self.getWinStr(player.getName()))
-            else:
-                self.SendPlayersAndFinish(self.getDrawStr(player.getName()))
-        self.lock.release()
+        if not self.isGameFinished: # If entered after that the game finished than leave.
+            self.lock.acquire()
+            self.debug("Finished GAME!!!!!")
+            if not self.isGameFinished :
+                self.isGameFinished = True
+                if num == ConnectionThread.LOSS_INDEX:
+                    self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
+                elif num == ConnectionThread.WIN_INDEX:
+                    self.SendPlayersAndFinish(self.getWinStr(player.getName()))
+                else:
+                    self.SendPlayersAndFinish(self.getDrawStr())
+            self.lock.release()
 
-    """ This method makes sure that the game is no longer than the determined max time """
-    def gameTimeout(self):
-        time.sleep(Server.ANSWER_TIMEOUT) # waiting 10 seconds until the game ends
-        self.finishGame(ConnectionThread.DRAW_INDEX) # trying to create draw situation
-
+    
     """ Sending all players a message and closing the connections """
     def SendPlayersAndFinish(self, msg):
         for player in self.players:
@@ -180,34 +177,43 @@ class Server():
         # except PlayerNameException as e:
         #     # return False???
         #     handleNoNameSent(e.player)
-        welcome_str : str = self.createWelcomeString()
-        # need to sleep for 10 seconds after all clients joined
-        args = (Server.encodeStr(welcome_str),)
-        conThreadsCreation_thread = threading.Thread(target=self.addConnectionThreads, args=args)
-        conThreadsCreation_thread.start()
-
-        self.debug("going to sleep {}".format( Server.TIME_AFTER_LAST_JOINED))
-        time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
-
-        for psThr in self.player_name_threads:
-            psThr.join()
-
-        self.debug("Slept")
-        conThreadsCreation_thread.join() # Making sure all connection threads are created.
         
 
-        # We start the game after knowing all players are connected and have names
-        # send message to all players : 'All players connected, starting in 10 seconds....'
-        game_timeout_thread = threading.Thread(target=self.gameTimeout)
+        print("{} players joined, starting in {} seconds".format(self.num_of_players , Server.TIME_AFTER_LAST_JOINED))
+        time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
+         
+        print("Making sure all players sent their names before starting....")
+        # Making sure all players name threads are done (Should have been)
+        for psThr in self.player_name_threads:
+            psThr.join()
+        print("All players ready!")
+        
+
+        # Creating welcome string and starting all connection threads -> starting game.
+        welcome_str : str = self.createWelcomeString()
+        encoded_welcome = Server.encodeStr(welcome_str)
+        self.addConnectionThreads(encoded_welcome, self.answer, Server.ANSWER_TIMEOUT, self.finishGame)
+        
+        
+        # GAME STARTING!!!!!
+        print("Game starting!")
         for conThr in self.connection_threads:
             # The timeout is not really relevant as we will not wait for it. 
             # Therefore, we put the answer timeout that is already the max time out.
             conThr.start()
 
-        # GAME STARTING!!!!!
-        game_timeout_thread.start()
+
         for conThr in self.connection_threads:
             conThr.join()
+        
+        # Announcing a draw and closing all socket
+        if not self.isGameFinished:
+            print("Draw! no one answered")
+            self.finishGame(ConnectionThread.DRAW_INDEX)
+        
+        print("Game finished!")
+
+
 
 
         

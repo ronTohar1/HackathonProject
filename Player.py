@@ -4,11 +4,12 @@ import socket
 from struct import iter_unpack
 
 class Player():
+    GAME_TIMEOUT = -1
     def __init__(self, socket):
         self.socket = socket
         self.name = ""
+        
 
-       
     def getName(self):
         return self.name
 
@@ -52,9 +53,10 @@ class Player():
             else:
                 return chr(data[0])
         except socket.timeout as e:
-            print("Timeout exception", e)
+            print(self.name, " Got Timeout receiving char ")
+            return Player.GAME_TIMEOUT
         except Exception as e:
-            print("Exception", e)
+            print("Exception receiving game answer: ", e)
 
     """ Requesting the name from the client and setting it as this player name """
     def receiveName(self, receiveNameTimeout ,defaultTeamName):
