@@ -3,14 +3,13 @@ import sys
 from struct import pack
 import threading
 import time
-from connectionThread import ConnectionThread
 from Player import Player
 import queue
 import random
 
 class Server():
 
-    BROADCAST_PORT = 13117
+    BROADCAST_PORT = 13333
 
     ANSWER_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 7
@@ -21,6 +20,12 @@ class Server():
     MAGIC_COOKIE = 0xabcddcba #bytearray([0xba , 0xdc, 0xcd, 0xab])
     MSG_TYPE = 0x2
 
+    LOSS_INDEX = 0
+    WIN_INDEX = 1
+    DRAW_INDEX = -1
+
+    questions = [("How many characters in ")]
+    
     # initiating the server object. expacting a lock object to be received!.
     def __init__(self, lock, port : int , num_of_players=2):
         self.lock = lock
@@ -76,6 +81,7 @@ class Server():
     """ Creating a math question as a string, and returns it and the 
         answer to the question as (question, ans) tuple """
     def create_math_question(self):
+
         first = random.randint(0, 4)
         second = random.randint(0, 5)
         question = "How much is {} + {}".format(first, second)
@@ -99,16 +105,21 @@ class Server():
 
     """ Creating the welcoming TCP socket and listening on the selected port"""
     def startServer(self):
-        self.debug("Starting a fresh server")
+        self.debug("Starting a fresh server. FUN!")
         # Starting TCP 'welcome' socket for the server
 
         #broadcasting contantly until all connected
-        try:
-            self.welcome_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.welcome_socket.bind((Server.HOST_IP, self.port))
-            self.welcome_socket.listen(1)
-        except:
-            print("The ip we are trying to connect is not available: {}, {}".format(Server.HOST_IP,self.port))
+        connected = False
+        while not connected:
+            try:
+                self.welcome_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.welcome_socket.bind((Server.HOST_IP, self.port))
+                self.welcome_socket.listen(1)
+                connected = True
+            except:
+                print("The ip we are trying to connect is not available: {}, {}".format(Server.HOST_IP,self.port))
+                time.sleep(1)
+
         try:
             wakeup_str = self.server_wakeup_str(host_addr=Server.HOST_IP)
                 # Sending broadcast and starting to connect players.
@@ -157,23 +168,23 @@ class Server():
     """ This method is being called when the game is finished by one of the threads """
     # num = 0 is loss, num = 1 is win, other num is draw
     def finishGame(self, num, player=None):
-        if not self.isGameFinished: # If entered after that the game finished than leave.
             self.lock.acquire()
             try:
                 if not self.isGameFinished:
                     self.isGameFinished = True
                 
-                    if num == ConnectionThread.LOSS_INDEX:
+                    if num == Server.LOSS_INDEX:
                         finStr = self.getLoseStr(player.getName())
                         print("Lossers :",player.getName() )
                         self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
                 
-                    elif num == ConnectionThread.WIN_INDEX:
+                    elif num == Server.WIN_INDEX:
                         finStr = self.getWinStr(player.getName())
                         print("Winners: ",player.getName() )
                         self.SendPlayersAndFinish(self.getWinStr(player.getName()))
                 
                     else:
+                        print('Draw!!!!')
                         finStr = self.getDrawStr()
                         self.SendPlayersAndFinish(self.getDrawStr())
             
@@ -184,10 +195,9 @@ class Server():
     """ Saving connection threads, where each thread manages the game flow of a player """
     def addConnectionThreads(self, welcomeMsg):
         for player in self.players:
-            conThread = ConnectionThread(player, welcomeMsg, self.answer, Server.ANSWER_TIMEOUT, self.finishGame)
+            args = (player, welcomeMsg, self.answer, Server.ANSWER_TIMEOUT)
+            conThread = threading.Thread(target=self.playFunc, args=args)
             self.connection_threads.append(conThread)
-
-    
 
     
     """ Sending all players a message and closing the connections """
@@ -197,6 +207,27 @@ class Server():
             t = threading.Thread(target=player.sendAndFinish, args=(msg,))
             t.start()
 
+    def isCorrectAnswer(self, c):
+        return c == str(self.answer)
+
+    def playFunc(self, player, welcome_msg, answer, timeout):
+        try:
+            player.sendMessage(welcome_msg, 1)# send welcome msg
+
+            # receiving if not passed 10 seconds
+            current_time = time.time()
+            while (not self.isGameFinished) and time.time() < current_time + timeout:
+                player_ans = player.receiveChar(self.isGameFinished)
+                if not (player_ans == None):
+                    isCorrect = self.isCorrectAnswer(player_ans)
+                    if isCorrect:
+                        self.finishGame(Server.WIN_INDEX, player)
+                    else:
+                        self.finishGame(Server.LOSS_INDEX, player)
+                time.sleep(0.2)
+        except:
+            player.closeSocket()
+
     """Returns true if finished properly or false otherwise -> meaning not
     all participants are connected properly ??????????????????????????????"""
     def startGame(self):
@@ -204,7 +235,7 @@ class Server():
         print("{} players joined, starting in {} second\n".format(self.num_of_players , Server.TIME_AFTER_LAST_JOINED))
         time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
          
-        print("Making sure all players sent their names before starting....")
+        print("Making sure all players sent their names before starting.... (waiting up to {} seconds after the last joined)".format(Server.TIME_AFTER_LAST_JOINED))
         # Making sure all players name threads are done (Should have been)
         for psThr in self.player_name_threads:
             psThr.join()
@@ -230,7 +261,7 @@ class Server():
         
         # Announcing a draw and closing all socket
         if not self.isGameFinished:
-            self.finishGame(ConnectionThread.DRAW_INDEX)
+            self.finishGame(Server.DRAW_INDEX)
         
         print("Game finished!------------------------------\n\n")
 
@@ -261,7 +292,7 @@ class Server():
 def main():
     server_port = 2061 # we are student61
     num_of_players = 2
-    lock = threading.Lock()
+    lock = threading.Condition(threading.Lock())
     server = Server(lock, server_port, num_of_players)
     server.startServer()
     

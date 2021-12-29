@@ -24,6 +24,7 @@ class ConnectionThread(threading.Thread):
             self.player.sendMessage(self.welcome_msg, 1)
             player_ans = self.player.receiveChar(self.timeout)
             print("{} answered: ".format(self.player.getName()) ,player_ans)
+
             if player_ans is None: # Something that shouldn't be possible
                 print("{} lost - answered a non-acceptable answer (they sent empty message)".format(self.player.getName()))
                 self.won_func(ConnectionThread.LOSS_INDEX, self.player)
@@ -36,14 +37,15 @@ class ConnectionThread(threading.Thread):
                     self.won_func(ConnectionThread.LOSS_INDEX, self.player)
         except socket.timeout as e:
             try: # making sure the socket is closed
-                self.player.closeSocket()
+                if self.player:
+                    self.player.closeSocket()
             except:
                 return
 
         except Exception as e:
             # If some error occurd, the player lost
             self.won_func(ConnectionThread.LOSS_INDEX, self.player)
-            
+
         try: # anyway dont want to keep any socket on.
             self.player.closeSocket()
         except:

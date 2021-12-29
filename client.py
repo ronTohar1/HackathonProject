@@ -6,10 +6,10 @@ import time
 
 from Player import decode
 
-BROADCAST_PORT =13117
+BROADCAST_PORT =13333
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
-TEAM_NAME = "La Casa De Packet"
+TEAM_NAME = "La Casa De Packet\n"
 MY_NET = '172.1'
 
 def isInNet(ip):
@@ -46,14 +46,16 @@ def recive_broadcast(socket):
         if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
             print("Received offer from ip: {}, attempting to connect...".format(address[0])) # printing ip
             connect_to_server(server_port,address[0])
-        else:
-            print(cookie, msg_type)
+        print(address[0], server_port)
 
 def connect_to_server(server_port, server_address):
     ClientConnectionSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcc = 0
     try:
+        ttc = time.time()
         ClientConnectionSocket.connect((server_address, server_port))
         ClientConnectionSocket.send(encodeStr(TEAM_NAME)) # Sedning team name
+        print(tcc - time.time())
         game_mode(ClientConnectionSocket, server_address)
     except Exception as e:
         print("Failed to connect. Error:", e)

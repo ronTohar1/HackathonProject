@@ -38,30 +38,33 @@ class Player():
             self.socket.send(msg)
             self.closeSocket()
         except Exception as e:
-            print("Error closing socket: ", e, self.closeSocket())
+            print("Error closing socket: ", e , self.socket, self.getName())
 
     def closeSocket(self):
-        if self.socket:
+        try:
+            #print("closed {} socket".format(self.name))
             self.socket.close()
+        except:
+            return # probably already closed
 
 
     """ Receiving a char from the client (or none if nothing was recevied) """
-    def receiveChar(self, timeout):
-        self.setTimeOut(timeout)
-        try:
-            data = self.socket.recv(1024)
-            if not data:
+    def receiveChar(self, isGameFinished):
+        if not isGameFinished:
+            self.socket.setblocking(False)
+            try:
+                data = self.socket.recv(1024)
+                if not data:
+                    return None
+                else:
+                    return chr(data[0])
+            except Exception as e:
                 return None
-            else:
-                return chr(data[0])
-        except socket.timeout as e:
-            return Player.GAME_TIMEOUT
-        except Exception as e:
-            return Player.GAME_TIMEOUT
 
 
     """ Requesting the name from the client and setting it as this player name """
     def receiveName(self, receiveNameTimeout ,defaultTeamName):
+        self.setblocking(True)
         self.setTimeOut(receiveNameTimeout)
         name_buffer =[]
         continue_recv = True
