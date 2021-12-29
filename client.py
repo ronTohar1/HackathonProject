@@ -19,7 +19,6 @@ def isInNet(ip):
     return ip[:l] == MY_NET
 
 
-
 def start_client():
     # Create a UDP socket at client side
     ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

@@ -61,10 +61,12 @@ class Player():
             except Exception as e:
                 return None
 
+    def isConnected():
+        return true
 
     """ Requesting the name from the client and setting it as this player name """
     def receiveName(self, receiveNameTimeout ,defaultTeamName):
-        self.setblocking(True)
+        self.socket.setblocking(True)
         self.setTimeOut(receiveNameTimeout)
         name_buffer =[]
         continue_recv = True

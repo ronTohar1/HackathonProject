@@ -24,7 +24,8 @@ class Server():
     WIN_INDEX = 1
     DRAW_INDEX = -1
 
-    questions = [("How many characters in ")]
+    questions = [("How many characters are in the word - happiness?",9), ("How many continents there are?",7), ("what is the best digit?",7),("3 + 5 - 7 + 1 - 2 =",0),("what digit rymes with heaven?",7)]
+
     
     # initiating the server object. expacting a lock object to be received!.
     def __init__(self, lock, port : int , num_of_players=2):
@@ -81,11 +82,10 @@ class Server():
     """ Creating a math question as a string, and returns it and the 
         answer to the question as (question, ans) tuple """
     def create_math_question(self):
-
-        first = random.randint(0, 4)
-        second = random.randint(0, 5)
-        question = "How much is {} + {}".format(first, second)
-        answer  = first + second
+        
+        index = random.randint(0, len(Server.questions) - 1)
+        question = Server.questions[index][0]
+        answer  = Server.questions[index][1]
         return question, answer
 
     def getDefaultTeamName(self):
@@ -239,6 +239,12 @@ class Server():
         # Making sure all players name threads are done (Should have been)
         for psThr in self.player_name_threads:
             psThr.join()
+        
+        # for player in players:
+        #     if not player.isConnected():
+        #         print("a player has crashed!")
+        #         return
+
         print("All players ready!\n")
         
 
