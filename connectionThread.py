@@ -25,7 +25,7 @@ class ConnectionThread(threading.Thread):
             player_ans = self.player.receiveChar(self.timeout)
             print("{} answered: ".format(self.player.getName()) ,player_ans)
             if player_ans is None: # Something that shouldn't be possible
-                print("This wasn't supposed to happen")
+                print("{} lost - answered a non-acceptable answer (they sent empty message)".format(self.player.getName()))
                 self.won_func(ConnectionThread.LOSS_INDEX, self.player)
 
             if player_ans is not Player.GAME_TIMEOUT:
@@ -36,10 +36,10 @@ class ConnectionThread(threading.Thread):
                     self.won_func(ConnectionThread.LOSS_INDEX, self.player)
                     
         except Exception as e:
-            print("CT run error: ", e)
-            
-        try:
-            self.player.closeSocket() # Closing in case some error occurd and socket wasn't closed.
+            # If some error occurd, the player lost
+            self.won_func(ConnectionThread.LOSS_INDEX, self.player)
+        try: # anyway dont want to keep any socket on.
+            self.player.closeSocket()
         except:
             return
         

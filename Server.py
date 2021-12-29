@@ -10,7 +10,7 @@ import random
 
 class Server():
 
-    BROADCAST_PORT = 13117
+    BROADCAST_PORT = 13125
 
     ANSWER_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 7
@@ -43,7 +43,7 @@ class Server():
         self.answer = 0
     
         # Informative strings for the server.
-        self.server_wakeup_str = lambda host_addr : "Server started, listening on IP address {}".format(host_addr)
+        self.server_wakeup_str = lambda host_addr : "Server started, listening on IP address {} and Port {}".format(host_addr, self.port)
         self.get_finish_str = lambda ans : "Game Over!\n the correct answer was {}\n\n".format(ans)
         self.get_congrats_str = lambda p_won: "Congratulations to the WINNER: {}".format(p_won)
         self.draw_str = "Good game everyone! it's a draw"
@@ -99,7 +99,6 @@ class Server():
 
     """ Creating the welcoming TCP socket and listening on the selected port"""
     def startServer(self):
-
         self.debug("starting fresh")
         # Starting TCP 'welcome' socket for the server
 
@@ -109,16 +108,21 @@ class Server():
         self.welcome_socket.bind((Server.HOST_IP, self.port))
         self.welcome_socket.listen(1)
         
-        wakeup_str = self.server_wakeup_str(host_addr=Server.HOST_IP)
-            # Sending broadcast and starting to connect players.
-        while True:
-            print(wakeup_str) # Printing that started listening
-            self.resetServer() # Making sure server is ready for new game.
-            self.question, self.answer = self.create_math_question() # Setting math question and ans
-            broadcast_thread = threading.Thread(target=self.broadcast_message)
-            broadcast_thread.start()
-            self.connectPlayers() # accepting new players
-            self.startGame() # After all players joined -> starting the game.
+        try:
+            wakeup_str = self.server_wakeup_str(host_addr=Server.HOST_IP)
+                # Sending broadcast and starting to connect players.
+            while True:
+                print(wakeup_str) # Printing that started listening
+                self.resetServer() # Making sure server is ready for new game.
+                self.question, self.answer = self.create_math_question() # Setting math question and ans
+                broadcast_thread = threading.Thread(target=self.broadcast_message)
+                broadcast_thread.start()
+                self.connectPlayers() # accepting new players
+                self.startGame() # After all players joined -> starting the game.
+        except:
+            self.welcome_socket.close()
+
+
 
 
     """ Connecting the players to the server """
@@ -133,12 +137,10 @@ class Server():
             connectionSocket.setblocking(True) # making sure the socket is blocking.
             player = Player(connectionSocket)
             self.players.append(player) # adding the player to the players list        
-            self.debug("Added a player")
-        self.connectingPlayers = False
-
-        for player in self.players:
+            print("Added player: (ip, port) {}".format(addr))
             defaultName = self.getDefaultTeamName()
-            t = self.setPlayerName(player, defaultName)
+            self.setPlayerName(player, defaultName)
+        self.connectingPlayers = False
 
 
         
@@ -155,17 +157,18 @@ class Server():
     # num = 0 is loss, num = 1 is win, other num is draw
     def finishGame(self, num, player=None):
         if not self.isGameFinished: # If entered after that the game finished than leave.
-            
             self.lock.acquire()
-            if not self.isGameFinished :
+            if not self.isGameFinished:
                 self.isGameFinished = True
                
                 if num == ConnectionThread.LOSS_INDEX:
                     finStr = self.getLoseStr(player.getName())
+                    print("Lossers :",player.getName() )
                     self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
                
                 elif num == ConnectionThread.WIN_INDEX:
                     finStr = self.getWinStr(player.getName())
+                    print("Winners: ",player.getName() )
                     self.SendPlayersAndFinish(self.getWinStr(player.getName()))
                
                 else:
@@ -193,21 +196,15 @@ class Server():
     """Returns true if finished properly or false otherwise -> meaning not
     all participants are connected properly ??????????????????????????????"""
     def startGame(self):
-        # try:
-        #     checkPlayersNames(players)
-        # except PlayerNameException as e:
-        #     # return False???
-        #     handleNoNameSent(e.player)
-        
 
-        print("{} players joined, starting in {} seconds".format(self.num_of_players , Server.TIME_AFTER_LAST_JOINED))
+        print("{} players joined, starting in {} second\n".format(self.num_of_players , Server.TIME_AFTER_LAST_JOINED))
         time.sleep(Server.TIME_AFTER_LAST_JOINED) # Waiting 10 seconds after second user joined.
          
         print("Making sure all players sent their names before starting....")
         # Making sure all players name threads are done (Should have been)
         for psThr in self.player_name_threads:
             psThr.join()
-        print("All players ready!")
+        print("All players ready!\n")
         
 
         # Creating welcome string and starting all connection threads -> starting game.
@@ -217,7 +214,7 @@ class Server():
         
         
         # GAME STARTING!!!!!
-        print("Game starting!")
+        print("Game starting! sending questions...\n")
         for conThr in self.connection_threads:
             # The timeout is not really relevant as we will not wait for it. 
             # Therefore, we put the answer timeout that is already the max time out.
@@ -231,7 +228,7 @@ class Server():
         if not self.isGameFinished:
             self.finishGame(ConnectionThread.DRAW_INDEX)
         
-        print("Game finished!")
+        print("Game finished!------------------------------\n\n")
 
 
 
@@ -256,14 +253,10 @@ class Server():
         encoded = msg.encode('utf-8')
         return encoded
 
-     
-    
-
-    
 
 def main():
     server_port = 2061 # we are student61
-    num_of_players = 1
+    num_of_players = 2
     lock = threading.Lock()
     server = Server(lock, server_port, num_of_players)
     server.startServer()

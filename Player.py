@@ -56,7 +56,6 @@ class Player():
         except socket.timeout as e:
             return Player.GAME_TIMEOUT
         except Exception as e:
-            print("Exception receiving game answer: ", e)
             return Player.GAME_TIMEOUT
 
 
@@ -65,6 +64,7 @@ class Player():
         self.setTimeOut(receiveNameTimeout)
         name_buffer =[]
         continue_recv = True
+        name_set = False
         while continue_recv:
             try:
                 recv_buffer = self.socket.recv(1024) # Receiving the name of the player.
@@ -77,10 +77,12 @@ class Player():
 
                 name = decode(recv_buffer)
                 #name = str(name.join(map(chr, name_buffer))) # decoding the name 
+                #print("Received player name:", name)
                 self.setName(name) # setting the name of the current player.
-                print("Received first player name:", name)
+                name_set = True
             except socket.timeout as e:
-                self.setName(defaultTeamName)
+                if not name_set:
+                    self.setName(defaultTeamName)
                 break
             except Exception as e:
                 print("Exception Receiving name of player: " ,e)
