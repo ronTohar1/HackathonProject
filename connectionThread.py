@@ -37,6 +37,11 @@ class ConnectionThread(threading.Thread):
                     
         except Exception as e:
             print("CT run error: ", e)
+            
+        try:
+            self.player.closeSocket() # Closing in case some error occurd and socket wasn't closed.
+        except:
+            return
         
 
         

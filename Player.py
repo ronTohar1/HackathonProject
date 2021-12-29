@@ -36,9 +36,13 @@ class Player():
     def sendAndFinish(self, msg):
         try:
             self.socket.send(msg)
-            self.socket.close()
+            self.closeSocket()
         except Exception as e:
             print("Error closing socket: ", e)
+
+    def closeSocket(self):
+        self.socket.close()
+
 
     """ Receiving a char from the client (or none if nothing was recevied) """
     def receiveChar(self, timeout):
@@ -64,14 +68,15 @@ class Player():
         while continue_recv:
             try:
                 recv_buffer = self.socket.recv(1024) # Receiving the name of the player.
-                for c in iter_unpack('c',recv_buffer):
-                    next_char = c[0]
-                    if next_char == bytearray(("\n").encode()):
-                        continue_recv = False
-                    else:
-                        name_buffer += next_char
-                name = ""
-                name = str(name.join(map(chr, name_buffer))) # decoding the name 
+                # for c in iter_unpack('c',recv_buffer):
+                #     next_char = c[0]
+                #     if next_char == bytearray(("\n").encode()):
+                #         continue_recv = False
+                #     else:
+                #         name_buffer += next_char
+
+                name = decode(recv_buffer)
+                #name = str(name.join(map(chr, name_buffer))) # decoding the name 
                 self.setName(name) # setting the name of the current player.
                 print("Received first player name:", name)
             except socket.timeout as e:
@@ -80,5 +85,7 @@ class Player():
             except Exception as e:
                 print("Exception Receiving name of player: " ,e)
 
+def decode(msg):
+    return msg.decode('utf-8')
 
             

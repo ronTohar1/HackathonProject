@@ -253,8 +253,8 @@ class Server():
 
 
     def encodeStr(msg : str):
-        encoded = msg.encode()
-        return bytearray(encoded)
+        encoded = msg.encode('utf-8')
+        return encoded
 
      
     

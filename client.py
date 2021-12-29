@@ -4,11 +4,12 @@ import sys
 import select
 import time
 
-BROADCAST_PORT =13117
+BROADCAST_PORT =13118
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
 msgFromClient       = "Hello UDP Server"
 bytesToSend         = str.encode(msgFromClient)
+TeamName = "La Casa De Packet"
 
 
 def start_client():
@@ -16,39 +17,35 @@ def start_client():
     while True:
         ClientBroadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         ClientBroadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        ClientBroadcastSocket.bind(("", BROADCAST_PORT))
+        ClientBroadcastSocket.bind(('', BROADCAST_PORT))
         recive_broadcast(ClientBroadcastSocket)
 
 def recive_broadcast(socket):
+    print("Waiting for broadcasts")
     packet, address= socket.recvfrom(1024)
-    while len(packet)<7:
+    while len(packet)<7: #Not supposed to happen
         packet += socket.recvfrom(1024)[0]
     socket.close()
-    print(packet)
-    cookie = unpack('I',packet[:4])[0]
-    msg_type = unpack('b',packet[4:5])[0]
-    print(packet[:4])
-    print(packet[4:5])
-    print(packet[5:7])
-    print(unpack('H', packet[5:7])[0])
-    if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
-        server_port = unpack('H', packet[5:7])[0]
-        print("got cookie")
-        connect_to_server(server_port,address[0])
+    
+    if(len(packet)) == 7:
+        cookie, msg_type, server_port = unpack('=IbH',packet)
+        print(unpack('H', packet[5:7])[0])
+        if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
+            print("Received offer from ip: {}, attempting to connect...".format(address[0])) # printing ip
+            connect_to_server(server_port,address[0])
 
 def connect_to_server(server_port, server_address):
-    ClientConnectionSocket =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ClientConnectionSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        print(server_address)
-        print(server_port)
         ClientConnectionSocket.connect((server_address, server_port))
-        game_mode(ClientConnectionSocket)
+        ClientConnectionSocket.send(encodeStr(TeamName)) # Sedning team name
+        game_mode(ClientConnectionSocket, server_address)
     except Exception as e:
         print("failed to connect", e)
         ClientConnectionSocket.close()
 
-def game_mode(connection_socket):
-    print("hi")
+def game_mode(connection_socket, server_ip):
+    print("Connected successfuly to", server_ip)
     msg_queue = []
     should_finish = False
     while not should_finish:
@@ -114,6 +111,9 @@ def handle_keyboard(s):
 def handle_send(o,msg):
     print("sending", msg)
     o.send(bytearray(msg.encode()))
+
+def encodeStr(msg):
+    return msg.encode('utf-8')
 
 if __name__=="__main__":
     start_client()
