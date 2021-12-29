@@ -35,13 +35,13 @@ class Player():
         except Exception as e:
             print("Error sending message: {}".format(e)) 
 
+    """ Receives and send an encoded msg to the player """
     def sendAndFinish(self, msg):
         try:
-            msg = bytearray([1,1,1,2])
-            self.sendMessage(msg)
+            self.socket.send(msg)
             self.socket.close()
-        except:
-            print("Error closing socket")
+        except Exception as e:
+            print("Error closing socket: ", e)
 
     """ Receiving a char from the client (or none if nothing was recevied) """
     def receiveChar(self, timeout):
@@ -53,37 +53,35 @@ class Player():
             else:
                 return chr(data[0])
         except socket.timeout as e:
-            print(self.name, " Got Timeout receiving char ")
             return Player.GAME_TIMEOUT
         except Exception as e:
             print("Exception receiving game answer: ", e)
+            return Player.GAME_TIMEOUT
+
 
     """ Requesting the name from the client and setting it as this player name """
     def receiveName(self, receiveNameTimeout ,defaultTeamName):
         self.setTimeOut(receiveNameTimeout)
         name_buffer =[]
         continue_recv = True
-        name_set = False
         while continue_recv:
-            # IMPLEMENT EXCEPTION HANDLING
             try:
                 recv_buffer = self.socket.recv(1024) # Receiving the name of the player.
-            except socket.timeout as e:
-                self.setName(defaultTeamName)
-                name_set = True
-                break
-            except Exception as e:
-                print("Exception: ",e)
-            if not name_set:
                 for c in iter_unpack('c',recv_buffer):
                     next_char = c[0]
                     if next_char == bytearray(("\n").encode()):
                         continue_recv = False
                     else:
                         name_buffer += next_char
-        if not name_set:
-            print("Received name:!!!!!")
-            name = ""
-            name = str(name.join(map(chr, name_buffer))) # decoding the name 
-            self.setName(name) # setting the name of the current player.
-            print(":Finished recieveing1: ", name)
+                name = ""
+                name = str(name.join(map(chr, name_buffer))) # decoding the name 
+                self.setName(name) # setting the name of the current player.
+                print("Received first player name:", name)
+            except socket.timeout as e:
+                self.setName(defaultTeamName)
+                break
+            except Exception as e:
+                print("Exception Receiving name of player: " ,e)
+
+
+            

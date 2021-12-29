@@ -10,12 +10,10 @@ import queue
 
 class Server():
 
-    BROADCAST_PORT = 13117
-    BROADCAST_ADDR = ''
-    HOST_IP = '127.0.0.1'
+    BROADCAST_PORT = 13118
 
     ANSWER_TIMEOUT = 10
-    TIME_AFTER_LAST_JOINED = 5
+    TIME_AFTER_LAST_JOINED = 7
     RECEIVE_NAME_TIMEOUT = TIME_AFTER_LAST_JOINED
 
     MAGIC_COOKIE = bytearray([0xba , 0xdc, 0xcd, 0xab])
@@ -45,12 +43,12 @@ class Server():
         self.get_finish_str = lambda ans : "Game Over!\n the correct answer was {}\n\n".format(ans)
         self.get_congrats_str = lambda p_won: "Congratulations to the WINNER: {}".format(p_won)
         self.draw_str = "Good game everyone! it's a draw"
-        self.get_lose_str = lambda p_loss: "Congratulations to the LOSER : {}".format(p_loss)
+        self.get_loserCongrats_str = lambda p_loss: "Congratulations to the LOSER : {}".format(p_loss)
         
     def getLoseStr(self, PlayerName):
-        return self.get_finish_str(self.answer) + self. get_lose_str(PlayerName)
+        return self.get_finish_str(self.answer) + self.get_loserCongrats_str(PlayerName)
     def getWinStr(self, PlayerName):
-        return self.get_finish_str(self.answer) + self.getWinStr(PlayerName)
+        return self.get_finish_str(self.answer) + self.get_congrats_str(PlayerName)
     def getDrawStr(self):
         return self.get_finish_str(self.answer) + self.draw_str
 
@@ -134,39 +132,49 @@ class Server():
         
     """ Creating the string that will be sent to all players when the game begins"""
     def createWelcomeString(self):
-        welcome_str = "Welcome to Quick Maths!\n"
+        welcome_str = "Welcome to Quick Maths! YOU HAVE 10 SECONDS\n"
         for i in range(len(self.players)):
             welcome_str = welcome_str + "Player {}: {}\n".format(i, self.players[i].getName())
         welcome_str = welcome_str + "== \nPlease answer as fast as you can :\n{}".format(self.question)
         return welcome_str
 
+    """ This method is being called when the game is finished by one of the threads """
+    # num = 0 is loss, num = 1 is win, other num is draw
+    def finishGame(self, num, player=None):
+        if not self.isGameFinished: # If entered after that the game finished than leave.
+            
+            self.lock.acquire()
+            if not self.isGameFinished :
+                self.isGameFinished = True
+               
+                if num == ConnectionThread.LOSS_INDEX:
+                    finStr = self.getLoseStr(player.getName())
+                    self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
+               
+                elif num == ConnectionThread.WIN_INDEX:
+                    finStr = self.getWinStr(player.getName())
+                    self.SendPlayersAndFinish(self.getWinStr(player.getName()))
+               
+                else:
+                    finStr = self.getDrawStr()
+                    self.SendPlayersAndFinish(self.getDrawStr())
+           
+            self.lock.release()
+
     """ Saving connection threads, where each thread manages the game flow of a player """
     def addConnectionThreads(self, welcomeMsg):
         for player in self.players:
-            conThread = ConnectionThread(player, welcomeMsg, self.answer, Server.ANSWER_TIMEOUT)
+            conThread = ConnectionThread(player, welcomeMsg, self.answer, Server.ANSWER_TIMEOUT, self.finishGame)
             self.connection_threads.append(conThread)
 
-    """ This method is being called when the game is finished by one of the threads """
-    # num = 0 is loss, num = 1 is win, other num is draw
-    def finishGame(self, num, player : Player=None):
-        if not self.isGameFinished: # If entered after that the game finished than leave.
-            self.lock.acquire()
-            self.debug("Finished GAME!!!!!")
-            if not self.isGameFinished :
-                self.isGameFinished = True
-                if num == ConnectionThread.LOSS_INDEX:
-                    self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
-                elif num == ConnectionThread.WIN_INDEX:
-                    self.SendPlayersAndFinish(self.getWinStr(player.getName()))
-                else:
-                    self.SendPlayersAndFinish(self.getDrawStr())
-            self.lock.release()
+    
 
     
     """ Sending all players a message and closing the connections """
     def SendPlayersAndFinish(self, msg):
+        msg = Server.encodeStr(msg)
         for player in self.players:
-            t = threading.Thread(target=player.sendAndFinish, args=(msg))
+            t = threading.Thread(target=player.sendAndFinish, args=(msg,))
             t.start()
 
     """Returns true if finished properly or false otherwise -> meaning not
@@ -192,7 +200,7 @@ class Server():
         # Creating welcome string and starting all connection threads -> starting game.
         welcome_str : str = self.createWelcomeString()
         encoded_welcome = Server.encodeStr(welcome_str)
-        self.addConnectionThreads(encoded_welcome, self.answer, Server.ANSWER_TIMEOUT, self.finishGame)
+        self.addConnectionThreads(encoded_welcome)
         
         
         # GAME STARTING!!!!!
@@ -208,7 +216,6 @@ class Server():
         
         # Announcing a draw and closing all socket
         if not self.isGameFinished:
-            print("Draw! no one answered")
             self.finishGame(ConnectionThread.DRAW_INDEX)
         
         print("Game finished!")
@@ -236,16 +243,16 @@ class Server():
     def encodeStr(msg : str):
         encoded = msg.encode()
         return bytearray(encoded)
+
      
     
 
     
 
 def main():
-
-    server_port : int = 33026
+    server_port : int = 33024
     host_ip = '172.18.0.61'
-    num_of_players = 1
+    num_of_players = 2
     lock = threading.Lock()
     server = Server(lock, server_port, num_of_players)
     server.startServer( host_ip, server_port)
