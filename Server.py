@@ -6,7 +6,7 @@ import time
 from connectionThread import ConnectionThread
 from Player import Player
 import queue
-#import numpy as np
+import random
 
 class Server():
 
@@ -15,9 +15,11 @@ class Server():
     ANSWER_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 7
     RECEIVE_NAME_TIMEOUT = TIME_AFTER_LAST_JOINED
+    HOST_IP = '172.1.0.61'
+    DEV_BROADCAST = '172.1.255.255'
 
-    MAGIC_COOKIE = bytearray([0xba , 0xdc, 0xcd, 0xab])
-    MSG_TYPE = bytearray([0x02])
+    MAGIC_COOKIE = 0xabcddcba #bytearray([0xba , 0xdc, 0xcd, 0xab])
+    MSG_TYPE = 0x2
 
     # initiating the server object. expacting a lock object to be received!.
     def __init__(self, lock, port : int , num_of_players=2):
@@ -26,12 +28,14 @@ class Server():
         # Server related variables
         self.port : int = port # Server port
         self.welcome_socket = None # TCP 'welcome' socket
+        self.connectingPlayers = True
 
-        # Players related variables
+        # Players related variables 
         self.team_number_counter = 1 # used for default team numbers
         self.players = [] # Player objects that play in the game.
         self.connection_threads = [] # Array of Connection Threads (game members).
         self.player_name_threads = []
+
         # Game variables
         self.num_of_players = num_of_players
         self.isGameFinished = False
@@ -60,17 +64,20 @@ class Server():
     def broadcast_message(self):
         broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        port_in_bytes = (self.port).to_bytes(length=2, byteorder='little')
-        formatted_msg = pack('4ss2s',Server.MAGIC_COOKIE, Server.MSG_TYPE, port_in_bytes)
-        broadcast_socket.sendto( formatted_msg , ('<broadcast>', Server.BROADCAST_PORT))
+        broadcast_socket.bind((Server.HOST_IP, 0))
+        formatted_msg = pack('=IbH',Server.MAGIC_COOKIE, Server.MSG_TYPE, self.port)
+        while self.connectingPlayers:
+            broadcast_socket.sendto(formatted_msg , (Server.DEV_BROADCAST, Server.BROADCAST_PORT))
+            time.sleep(1)
+        
         broadcast_socket.close()
+
 
     """ Creating a math question as a string, and returns it and the 
         answer to the question as (question, ans) tuple """
     def create_math_question(self):
-        #first = np.random.randint(0, 4)
-        #second = np.random.randint(0, 5)
-        first, second = 1, 3
+        first = random.randint(0, 4)
+        second = random.randint(0, 5)
         question = "How much is {} + {}".format(first, second)
         answer  = first + second
         return question, answer
@@ -91,22 +98,27 @@ class Server():
         return setNameThread
 
     """ Creating the welcoming TCP socket and listening on the selected port"""
-    def startServer(self, host_ip, server_port):
-        #while True:
-        #self.resetServer() # Making sure server is ready for new game.
-        self.debug("Restarted")
+    def startServer(self):
+
+        self.debug("starting fresh")
         # Starting TCP 'welcome' socket for the server
+
+        #broadcasting contantly until all connected
+        
         self.welcome_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.welcome_socket.bind(('', server_port))
+        self.welcome_socket.bind((Server.HOST_IP, self.port))
         self.welcome_socket.listen(1)
         
-        print(self.server_wakeup_str(host_addr=host_ip)) # Printing that started listening
-        self.question, self.answer = self.create_math_question() # Setting math question and ans
-
-        # Sending broadcast and starting to connect players.
-        self.broadcast_message() 
-        self.connectPlayers() # accepting new players
-        self.startGame() # After all players joined -> starting the game.
+        wakeup_str = self.server_wakeup_str(host_addr=Server.HOST_IP)
+            # Sending broadcast and starting to connect players.
+        while True:
+            print(wakeup_str) # Printing that started listening
+            self.resetServer() # Making sure server is ready for new game.
+            self.question, self.answer = self.create_math_question() # Setting math question and ans
+            broadcast_thread = threading.Thread(target=self.broadcast_message)
+            broadcast_thread.start()
+            self.connectPlayers() # accepting new players
+            self.startGame() # After all players joined -> starting the game.
 
 
     """ Connecting the players to the server """
@@ -122,6 +134,7 @@ class Server():
             player = Player(connectionSocket)
             self.players.append(player) # adding the player to the players list        
             self.debug("Added a player")
+        self.connectingPlayers = False
 
         for player in self.players:
             defaultName = self.getDefaultTeamName()
@@ -232,13 +245,12 @@ class Server():
         self.players = [] 
         self.connection_threads = [] 
 
+        self.connectingPlayers = True
         # Game variables
         self.isGameFinished = False
         self.question = ""
         self.answer = 0
 
-        # Server variables
-        self.welcome_socket = None
 
     def encodeStr(msg : str):
         encoded = msg.encode()
@@ -250,12 +262,11 @@ class Server():
     
 
 def main():
-    server_port : int = 33024
-    host_ip = '172.18.0.61'
-    num_of_players = 2
+    server_port = 2061 # we are student61
+    num_of_players = 1
     lock = threading.Lock()
     server = Server(lock, server_port, num_of_players)
-    server.startServer( host_ip, server_port)
+    server.startServer()
     
 main()
 

@@ -1,5 +1,3 @@
-
-
 import socket
 from struct import iter_unpack
 
@@ -7,8 +5,7 @@ class Player():
     GAME_TIMEOUT = -1
     def __init__(self, socket):
         self.socket = socket
-        self.name = ""
-        
+        self.name = ""        
 
     def getName(self):
         return self.name
@@ -33,7 +30,7 @@ class Player():
             self.setTimeOut(timeout)
             self.socket.send(msg)
         except Exception as e:
-            print("Error sending message: {}".format(e)) 
+            print("Error sending message: {}".format(e))
 
     """ Receives and send an encoded msg to the player """
     def sendAndFinish(self, msg):
