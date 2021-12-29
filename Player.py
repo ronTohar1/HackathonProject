@@ -38,10 +38,11 @@ class Player():
             self.socket.send(msg)
             self.closeSocket()
         except Exception as e:
-            print("Error closing socket: ", e)
+            print("Error closing socket: ", e, self.closeSocket())
 
     def closeSocket(self):
-        self.socket.close()
+        if self.socket:
+            self.socket.close()
 
 
     """ Receiving a char from the client (or none if nothing was recevied) """

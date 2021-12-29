@@ -10,7 +10,7 @@ import random
 
 class Server():
 
-    BROADCAST_PORT = 13125
+    BROADCAST_PORT = 13117
 
     ANSWER_TIMEOUT = 10
     TIME_AFTER_LAST_JOINED = 7
@@ -99,15 +99,16 @@ class Server():
 
     """ Creating the welcoming TCP socket and listening on the selected port"""
     def startServer(self):
-        self.debug("starting fresh")
+        self.debug("Starting a fresh server")
         # Starting TCP 'welcome' socket for the server
 
         #broadcasting contantly until all connected
-        
-        self.welcome_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.welcome_socket.bind((Server.HOST_IP, self.port))
-        self.welcome_socket.listen(1)
-        
+        try:
+            self.welcome_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.welcome_socket.bind((Server.HOST_IP, self.port))
+            self.welcome_socket.listen(1)
+        except:
+            print("The ip we are trying to connect is not available: {}, {}".format(Server.HOST_IP,self.port))
         try:
             wakeup_str = self.server_wakeup_str(host_addr=Server.HOST_IP)
                 # Sending broadcast and starting to connect players.
@@ -158,24 +159,27 @@ class Server():
     def finishGame(self, num, player=None):
         if not self.isGameFinished: # If entered after that the game finished than leave.
             self.lock.acquire()
-            if not self.isGameFinished:
-                self.isGameFinished = True
-               
-                if num == ConnectionThread.LOSS_INDEX:
-                    finStr = self.getLoseStr(player.getName())
-                    print("Lossers :",player.getName() )
-                    self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
-               
-                elif num == ConnectionThread.WIN_INDEX:
-                    finStr = self.getWinStr(player.getName())
-                    print("Winners: ",player.getName() )
-                    self.SendPlayersAndFinish(self.getWinStr(player.getName()))
-               
-                else:
-                    finStr = self.getDrawStr()
-                    self.SendPlayersAndFinish(self.getDrawStr())
-           
-            self.lock.release()
+            try:
+                if not self.isGameFinished:
+                    self.isGameFinished = True
+                
+                    if num == ConnectionThread.LOSS_INDEX:
+                        finStr = self.getLoseStr(player.getName())
+                        print("Lossers :",player.getName() )
+                        self.SendPlayersAndFinish(self.getLoseStr(player.getName()))
+                
+                    elif num == ConnectionThread.WIN_INDEX:
+                        finStr = self.getWinStr(player.getName())
+                        print("Winners: ",player.getName() )
+                        self.SendPlayersAndFinish(self.getWinStr(player.getName()))
+                
+                    else:
+                        finStr = self.getDrawStr()
+                        self.SendPlayersAndFinish(self.getDrawStr())
+            
+                self.lock.release()
+            except: # Making sure that the lock is released
+                self.lock.release() 
 
     """ Saving connection threads, where each thread manages the game flow of a player """
     def addConnectionThreads(self, welcomeMsg):

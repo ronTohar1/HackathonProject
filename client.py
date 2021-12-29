@@ -6,14 +6,13 @@ import time
 
 from Player import decode
 
-BROADCAST_PORT =13125
+BROADCAST_PORT =13117
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
 TEAM_NAME = "La Casa De Packet"
 MY_NET = '172.1'
 
 def isInNet(ip):
-    print("ip", ip, "length of ip:",len(ip))
     l = len(MY_NET)
     if len(ip) < l:
         return False
@@ -37,16 +36,18 @@ def recive_broadcast(socket):
         packet, address= socket.recvfrom(1024)
         if isInNet(address[0]):
             connected = True
+        
     
     while len(packet)<7: #Not supposed to happen
         packet += socket.recvfrom(1024)[0]
 
     if(len(packet)) == 7:
         cookie, msg_type, server_port = unpack('=IbH',packet)
-        print(cookie, msg_type, server_port)
         if cookie == MAGIC_COOKIE and msg_type ==OFFER_MSG_TYPE:
             print("Received offer from ip: {}, attempting to connect...".format(address[0])) # printing ip
             connect_to_server(server_port,address[0])
+        else:
+            print(cookie, msg_type)
 
 def connect_to_server(server_port, server_address):
     ClientConnectionSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
