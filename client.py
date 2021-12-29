@@ -11,6 +11,7 @@ TEAM_NAME = "La Casa De Packet"
 MY_NET = '172.1'
 
 def isInNet(ip):
+    print("ip", ip, "length of ip:",len(ip))
     l = len(MY_NET)
     if len(ip) < l:
         return False
@@ -34,6 +35,8 @@ def recive_broadcast(socket):
         packet, address= socket.recvfrom(1024)
         if isInNet(address):
             connected = True
+        else:
+            print("address not in net: ", address)
     
     while len(packet)<7: #Not supposed to happen
         packet += socket.recvfrom(1024)[0]
