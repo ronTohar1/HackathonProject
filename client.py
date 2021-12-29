@@ -4,6 +4,8 @@ import sys
 import select
 import time
 
+from Player import decode
+
 BROADCAST_PORT =13117
 MAGIC_COOKIE = 0xabcddcba
 OFFER_MSG_TYPE = 0x2
@@ -58,23 +60,34 @@ def connect_to_server(server_port, server_address):
 
 def game_mode(connection_socket, server_ip):
     print("Connected successfuly to", server_ip)
+
     msg_queue = []
     should_finish = False
+
     while not should_finish:
-        readable,writable,e = select.select([sys.stdin,connection_socket],[],[],11)
+        timeout = 11
+        readable, writable, errors = select.select([sys.stdin, connection_socket], [], [], timeout)
         for s in readable:
+            
+            # If received input from user, adding it to the msg_queue and adding the socket
+            # because we can have to send the message through the socket
             if s == sys.stdin:
                 msg_queue.append(handle_keyboard(s))
                 writable.append(connection_socket)
-                print(msg_queue)
+
+            # If received input from socket, print it and end select if socket is closed
             if s == connection_socket:
                 if handle_msg_from_socket(s):
                     should_finish = True 
+    
+        # Popping the first appended message and sending it throught the socket o.
         for o in writable:
-            handle_send(o,msg_queue.pop(0))
+            handle_send(o, msg_queue.pop(0))
             if(len(msg_queue)==0):
                 writable.remove(o)
-        for s in e:
+
+        # If found error -> closing s and should finish.
+        for s in errors:
             print('handling exceptional condition for', s.getpeername())
             # Stop listening for input on the connection
             readable.remove(s)
@@ -83,29 +96,23 @@ def game_mode(connection_socket, server_ip):
             s.close()
             should_finish = True
     
-    
-def handle_msg_from_socket(s):
-    print("handle socket")
+""" Receiving a message from server. Returning true if should finish or false else"""
+def handle_msg_from_socket(sock):
+    print("Receiving message from socket:")
     try:
-        data= s.recv(1024)
+        data = sock.recv(1024)
     except Exception as e:
-        print(sys.stderr, 'closing', s.getpeername(), 'after', e)
+        print('closing', sock.getpeername(), 'after gett exception:', e)
         return True
-    while len(data)<7:
-        if data:
-            data += s.recv(1024)
-        else:
-            return True
-    if data:
-        # A readable client socket has data
-        data = "".join(map(chr, data))
-        print(sys.stderr, 'received "%s" from %s' % (data, s.getpeername()))
-        return False #should not finish
-    else:
-            # Interpret empty result as closed connection
-            print(sys.stderr, 'closing', s.getpeername(), 'after reading no data')
-            # Should finish
-            return True
+    
+    if not data:
+        return True # Should finish
+    
+    # A readable client socket has data
+    data = decodeStr(data)
+    print(sys.stderr, 'received "%s" from %s' % (data, sock.getpeername()))
+    
+    return False # Should not finish
                 
 def handle_keyboard(s):
     # gets a msg from server using created TCP socket
@@ -116,11 +123,14 @@ def handle_keyboard(s):
     return input
 
 def handle_send(o,msg):
-    print("sending", msg)
+    print("sending:", msg)
     o.send(encodeStr(msg))
 
 def encodeStr(msg):
     return msg.encode('utf-8')
+
+def decodeStr(msg):
+    return msg.decode('utf-8')
 
 if __name__=="__main__":
     start_client()
